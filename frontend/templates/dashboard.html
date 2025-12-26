@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC 2 Compliance Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card h3 {
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        
+        .stat-card.passing .value { color: #10b981; }
+        .stat-card.failing .value { color: #ef4444; }
+        .stat-card.warning .value { color: #f59e0b; }
+        .stat-card.neutral .value { color: #667eea; }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        
+        .section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #1e293b;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #5568d3;
+        }
+        
+        .btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        
+        .controls-list {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .control-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+            transition: border-color 0.2s;
+        }
+        
+        .control-item:hover {
+            border-color: #667eea;
+        }
+        
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .control-title {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #1e293b;
+        }
+        
+        .control-id {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #f1f5f9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .control-description {
+            color: #475569;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .control-meta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge.pass {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge.fail {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge.not-evaluated {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        
+        .badge.security { background: #dbeafe; color: #1e40af; }
+        .badge.availability { background: #d1fae5; color: #065f46; }
+        .badge.critical { background: #fee2e2; color: #991b1b; }
+        .badge.high { background: #fed7aa; color: #9a3412; }
+        .badge.medium { background: #fef3c7; color: #92400e; }
+        
+        .findings-list {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .finding-item {
+            border-left: 4px solid #ef4444;
+            background: #fef2f2;
+            padding: 1.25rem;
+            border-radius: 4px;
+        }
+        
+        .finding-item.critical {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+        }
+        
+        .finding-item.high {
+            border-left-color: #f97316;
+            background: #fff7ed;
+        }
+        
+        .finding-item.medium {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .finding-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #1e293b;
+        }
+        
+        .finding-description {
+            color: #475569;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #64748b;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+        }
+        
+        .spinner {
+            border: 3px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>🛡️ SOC 2 Compliance Dashboard</h1>
+            <p>AI-driven continuous compliance monitoring and audit readiness</p>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Summary Stats -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card neutral">
+                <h3>Compliance Score</h3>
+                <div class="value" id="compliance-score">--</div>
+                <div class="label">Overall compliance</div>
+            </div>
+            <div class="stat-card passing">
+                <h3>Passing Controls</h3>
+                <div class="value" id="passing-controls">--</div>
+                <div class="label">Controls in compliance</div>
+            </div>
+            <div class="stat-card failing">
+                <h3>Failing Controls</h3>
+                <div class="value" id="failing-controls">--</div>
+                <div class="label">Require attention</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Open Findings</h3>
+                <div class="value" id="open-findings">--</div>
+                <div class="label">Active issues</div>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="section">
+            <button class="btn" id="run-evaluation-btn" onclick="runEvaluation()">
+                🔄 Run Compliance Evaluation
+            </button>
+            <span id="last-eval" style="margin-left: 1rem; color: #64748b;"></span>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="section">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('controls')">Controls</button>
+                <button class="tab" onclick="switchTab('findings')">Findings</button>
+                <button class="tab" onclick="switchTab('evidence')">Evidence</button>
+            </div>
+            
+            <div id="controls-tab" class="tab-content active">
+                <h2>SOC 2 Controls</h2>
+                <div id="controls-list" class="controls-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading controls...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="findings-tab" class="tab-content">
+                <h2>Active Findings</h2>
+                <div id="findings-list" class="findings-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading findings...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="evidence-tab" class="tab-content">
+                <h2>Evidence Vault</h2>
+                <div id="evidence-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading evidence...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api';
+        
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+        
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/summary`);
+                const data = await response.json();
+                
+                document.getElementById('compliance-score').textContent = 
+                    `${data.compliance_score.toFixed(1)}%`;
+                document.getElementById('passing-controls').textContent = data.passing_controls;
+                document.getElementById('failing-controls').textContent = data.failing_controls;
+                document.getElementById('open-findings').textContent = data.total_findings;
+                
+                if (data.last_evaluation) {
+                    const date = new Date(data.last_evaluation);
+                    document.getElementById('last-eval').textContent = 
+                        `Last evaluated: ${date.toLocaleString()}`;
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+        
+        // Load controls
+        async function loadControls() {
+            try {
+                const response = await fetch(`${API_BASE}/controls`);
+                const controls = await response.json();
+                
+                const container = document.getElementById('controls-list');
+                
+                if (controls.length === 0) {
+                    container.innerHTML = '<p>No controls found.</p>';
+                    return;
+                }
+                
+                container.innerHTML = controls.map(control => `
+                    <div class="control-item">
+                        <div class="control-header">
+                            <div class="control-title">${control.name}</div>
+                            <div class="control-id">${control.id}</div>
+                        </div>
+                        <div class="control-description">${control.description}</div>
+                        <div class="control-meta">
+                            <span class="badge ${control.category.toLowerCase()}">${control.category}</span>
+                            <span class="badge ${control.severity.toLowerCase()}">${control.severity}</span>
+                            <span class="badge">${control.tsc_reference}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading controls:', error);
+                document.getElementById('controls-list').innerHTML = 
+                    '<p>Error loading controls.</p>';
+            }
+        }
+        
+        // Load findings
+        async function loadFindings() {
+            try {
+                const response = await fetch(`${API_BASE}/findings?status=open`);
+                const findings = await response.json();
+                
+                const container = document.getElementById('findings-list');
+                
+                if (findings.length === 0) {
+                    container.innerHTML = '<p>No open findings. All controls are passing! 🎉</p>';
+                    return;
+                }
+                
+                container.innerHTML = findings.map(finding => `
+                    <div class="finding-item ${finding.severity.toLowerCase()}">
+                        <div class="finding-title">
+                            <span class="badge ${finding.severity.toLowerCase()}">${finding.severity}</span>
+                            ${finding.title}
+                        </div>
+                        <div class="finding-description">${finding.description}</div>
+                        <div style="font-size: 0.75rem; color: #64748b;">
+                            Control: ${finding.control_id} | 
+                            Discovered: ${new Date(finding.discovered_at).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading findings:', error);
+                document.getElementById('findings-list').innerHTML = 
+                    '<p>Error loading findings.</p>';
+            }
+        }
+        
+        // Load evidence
+        async function loadEvidence() {
+            try {
+                const response = await fetch(`${API_BASE}/evidence?limit=20`);
+                const evidence = await response.json();
+                
+                const container = document.getElementById('evidence-list');
+                
+                if (evidence.length === 0) {
+                    container.innerHTML = '<p>No evidence collected yet.</p>';
+                    return;
+                }
+                
+                container.innerHTML = `
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
+                                <th style="padding: 0.75rem;">Type</th>
+                                <th style="padding: 0.75rem;">Source</th>
+                                <th style="padding: 0.75rem;">Collected</th>
+                                <th style="padding: 0.75rem;">ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${evidence.map(e => `
+                                <tr style="border-bottom: 1px solid #e2e8f0;">
+                                    <td style="padding: 0.75rem;">
+                                        <span class="badge">${e.type}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem;">${e.source}</td>
+                                    <td style="padding: 0.75rem; font-size: 0.875rem; color: #64748b;">
+                                        ${new Date(e.collected_at).toLocaleString()}
+                                    </td>
+                                    <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: #64748b;">
+                                        ${e.id.substring(0, 8)}...
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error loading evidence:', error);
+                document.getElementById('evidence-list').innerHTML = 
+                    '<p>Error loading evidence.</p>';
+            }
+        }
+        
+        // Run evaluation
+        async function runEvaluation() {
+            const btn = document.getElementById('run-evaluation-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Running evaluation...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/evaluations/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force: true })
+                });
+                
+                const result = await response.json();
+                
+                // Reload all data
+                await Promise.all([
+                    loadDashboard(),
+                    loadControls(),
+                    loadFindings(),
+                    loadEvidence()
+                ]);
+                
+                btn.textContent = '✅ Evaluation complete!';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Run Compliance Evaluation';
+                }, 2000);
+            } catch (error) {
+                console.error('Error running evaluation:', error);
+                btn.textContent = '❌ Evaluation failed';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Run Compliance Evaluation';
+                }, 2000);
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await Promise.all([
+                loadDashboard(),
+                loadControls(),
+                loadFindings(),
+                loadEvidence()
+            ]);
+        });
+    </script>
+</body>
+</html>

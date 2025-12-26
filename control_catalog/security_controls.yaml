@@ -1,0 +1,271 @@
+# SOC 2 Control Catalog
+# Security (Common Criteria) Controls - MVP Focus
+
+controls:
+  - id: CC6.1-IAM-MFA
+    name: "Multi-Factor Authentication for Privileged Users"
+    description: "All users with administrative or privileged access must have MFA enabled to prevent unauthorized access."
+    tsc_reference: "CC6.1"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "okta"
+      - "azure_ad"
+      - "aws_iam"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check if all admin users have MFA enabled
+        SELECT user_id, email, role, mfa_enabled
+        FROM users
+        WHERE (is_admin = TRUE OR role IN ('admin', 'devops', 'security'))
+          AND mfa_enabled = FALSE
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} privileged users without MFA enabled"
+    severity: "high"
+    evaluation_frequency: "1h"
+    remediation: "Enable MFA for all users with administrative privileges through your identity provider."
+
+  - id: CC6.1-IAM-ORPHANED
+    name: "Orphaned Account Detection"
+    description: "Detect and remove user accounts that no longer have an active employee record in HR systems."
+    tsc_reference: "CC6.1"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "okta"
+      - "hr_system"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Find users in IdP not in HR system
+        SELECT u.user_id, u.email, u.name
+        FROM users u
+        LEFT JOIN hr_employees h ON u.email = h.email
+        WHERE u.active = TRUE AND h.employee_id IS NULL
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} orphaned accounts not linked to active employees"
+    severity: "high"
+    evaluation_frequency: "24h"
+    remediation: "Review orphaned accounts and disable or remove those belonging to former employees."
+
+  - id: CC6.6-IAM-EXCESSIVE-PERMS
+    name: "Excessive Permissions Detection"
+    description: "Detect users with overly broad permissions (e.g., AdministratorAccess in AWS)."
+    tsc_reference: "CC6.6"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_iam"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check for users/roles with broad admin policies
+        SELECT user_id, policy_name
+        FROM user_policies
+        WHERE policy_name IN ('AdministratorAccess', '*:*')
+      success_condition: "row_count <= threshold"
+      threshold: 3
+      failure_message: "Found {count} users with excessive administrative permissions"
+    severity: "medium"
+    evaluation_frequency: "24h"
+    remediation: "Apply principle of least privilege. Replace broad permissions with specific, role-based policies."
+
+  - id: CC7.2-LOGGING-CLOUDTRAIL
+    name: "CloudTrail Logging Enabled"
+    description: "AWS CloudTrail must be enabled for all regions to ensure comprehensive audit logging."
+    tsc_reference: "CC7.2"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_cloudtrail"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Verify CloudTrail is enabled
+        SELECT account_id, region, trail_name, is_multi_region, is_logging
+        FROM cloudtrail_status
+        WHERE is_logging = FALSE OR is_multi_region = FALSE
+      success_condition: "row_count = 0"
+      failure_message: "CloudTrail not properly configured in {count} accounts/regions"
+    severity: "high"
+    evaluation_frequency: "24h"
+    remediation: "Enable CloudTrail with multi-region support and ensure logging is active."
+
+  - id: CC7.2-LOGGING-RETENTION
+    name: "Log Retention Policy"
+    description: "Audit logs must be retained for at least 90 days to support incident investigation and compliance."
+    tsc_reference: "CC7.2"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_cloudwatch"
+      - "datadog"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check log retention settings
+        SELECT log_group, retention_days
+        FROM log_groups
+        WHERE retention_days < 90
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} log groups with retention < 90 days"
+    severity: "medium"
+    evaluation_frequency: "24h"
+    remediation: "Configure log retention to at least 90 days for all critical log groups."
+
+  - id: CC6.1-ENCRYPTION-AT-REST
+    name: "Encryption at Rest for Databases"
+    description: "All production databases must have encryption at rest enabled to protect sensitive data."
+    tsc_reference: "CC6.1"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_rds"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check RDS encryption status
+        SELECT db_instance_id, db_name, encrypted
+        FROM rds_instances
+        WHERE environment = 'production' AND encrypted = FALSE
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} production databases without encryption at rest"
+    severity: "critical"
+    evaluation_frequency: "24h"
+    remediation: "Enable encryption at rest for all production database instances."
+
+  - id: CC6.1-ENCRYPTION-IN-TRANSIT
+    name: "TLS/HTTPS Enforcement"
+    description: "All public-facing endpoints must enforce TLS/HTTPS to protect data in transit."
+    tsc_reference: "CC6.1"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_elb"
+      - "aws_cloudfront"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check load balancer SSL/TLS configuration
+        SELECT lb_name, listener_protocol
+        FROM load_balancer_listeners
+        WHERE listener_protocol = 'HTTP'
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} load balancers with unencrypted HTTP listeners"
+    severity: "high"
+    evaluation_frequency: "24h"
+    remediation: "Configure all load balancers to use HTTPS/TLS and redirect HTTP to HTTPS."
+
+  - id: CC6.1-S3-PUBLIC-ACCESS
+    name: "S3 Bucket Public Access Block"
+    description: "S3 buckets must not be publicly accessible unless explicitly required and documented."
+    tsc_reference: "CC6.1"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_s3"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check for publicly accessible S3 buckets
+        SELECT bucket_name, public_access_block_enabled
+        FROM s3_buckets
+        WHERE public_access_block_enabled = FALSE
+          AND bucket_name NOT IN (SELECT bucket_name FROM approved_public_buckets)
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} S3 buckets without public access block"
+    severity: "critical"
+    evaluation_frequency: "1h"
+    remediation: "Enable 'Block all public access' on S3 buckets unless public access is explicitly required and approved."
+
+  - id: CC8.1-CHANGE-MGMT-PR-REVIEW
+    name: "Code Review Required for Production Changes"
+    description: "All code changes to production systems must undergo peer review before deployment."
+    tsc_reference: "CC8.1"
+    category: "Security"
+    control_type: "Administrative"
+    sources:
+      - "github"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check for merged PRs without required reviews
+        SELECT pr_id, pr_title, merged_at, review_count
+        FROM pull_requests
+        WHERE merged_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND target_branch IN ('main', 'master', 'production')
+          AND review_count < 1
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} production PRs merged without required reviews in the last 7 days"
+    severity: "high"
+    evaluation_frequency: "24h"
+    remediation: "Enforce branch protection rules requiring at least one approval before merging to production branches."
+
+  - id: CC7.3-BACKUP-RDS
+    name: "Database Backup Verification"
+    description: "Production databases must have automated backups enabled with appropriate retention."
+    tsc_reference: "CC7.3"
+    category: "Security"
+    control_type: "Technical"
+    sources:
+      - "aws_rds"
+    logic:
+      type: "boolean_check"
+      query: |
+        # Check RDS backup configuration
+        SELECT db_instance_id, backup_retention_period
+        FROM rds_instances
+        WHERE environment = 'production'
+          AND (backup_retention_period = 0 OR backup_retention_period < 7)
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} production databases with insufficient backup retention"
+    severity: "high"
+    evaluation_frequency: "24h"
+    remediation: "Enable automated backups with at least 7-day retention for all production databases."
+
+  - id: CC7.4-INCIDENT-RESPONSE
+    name: "Incident Response Process"
+    description: "Security incidents must be documented and tracked through resolution."
+    tsc_reference: "CC7.4"
+    category: "Security"
+    control_type: "Administrative"
+    sources:
+      - "jira"
+      - "servicenow"
+    logic:
+      type: "manual_review"
+      query: |
+        # Check for security incidents without proper documentation
+        SELECT incident_id, created_at, status
+        FROM security_incidents
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 90 DAY)
+          AND (status = 'open' AND DATEDIFF(NOW(), created_at) > 30)
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} security incidents open for more than 30 days"
+    severity: "medium"
+    evaluation_frequency: "24h"
+    remediation: "Review and resolve long-standing security incidents. Ensure all incidents follow documented response procedures."
+
+  - id: CC9.2-VENDOR-RISK
+    name: "Vendor Security Assessment"
+    description: "Critical vendors must undergo security assessment and maintain current certifications."
+    tsc_reference: "CC9.2"
+    category: "Security"
+    control_type: "Administrative"
+    sources:
+      - "vendor_db"
+    logic:
+      type: "manual_review"
+      query: |
+        # Check for vendors needing security review
+        SELECT vendor_id, vendor_name, last_assessment_date, certification_expiry
+        FROM vendors
+        WHERE criticality = 'high'
+          AND (last_assessment_date < DATE_SUB(NOW(), INTERVAL 365 DAY)
+               OR certification_expiry < NOW())
+      success_condition: "row_count = 0"
+      failure_message: "Found {count} critical vendors with expired assessments or certifications"
+    severity: "medium"
+    evaluation_frequency: "168h"
+    remediation: "Conduct security assessments for critical vendors annually and verify current SOC 2 or equivalent certifications."
